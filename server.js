@@ -1,13 +1,14 @@
 const express = require("express");
-const axios = require("axios");
-const cheerio = require("cheerio");
-const cors = require("cors");
-
 const app = express();
+const cors = require("cors");
+require("dotenv").config();
+
+const { fetchYouTubeComments } = require("./fetch_comments");
+
 app.use(cors());
 app.use(express.json());
 
-app.get("/get-comments", async (req, res) => {
+app.get("/", async (req, res) => {
   try {
     const { videoId, order = "time" } = req.query;
 
@@ -18,46 +19,46 @@ app.get("/get-comments", async (req, res) => {
       });
     }
 
-    const postIdMatch = url.match(/\/questions\/(\d+)/);
-    if (!postIdMatch)
-      return res.status(400).json({ error: "Invalid Stack Overflow URL" });
-
-    const postId = postIdMatch[1];
-
-    const apiUrl = `https://api.stackexchange.com/2.3/questions/${postId}/comments?order=desc&sort=creation&site=stackoverflow&filter=withbody`;
-
-    const response = await axios.get(apiUrl);
-    if (response.data.items && response.data.items.length > 0) {
-      const comments = response.data.items.map((comment) => comment.body);
-      return res.json({ comments });
+    if (order && !["time", "relevance"].includes(order)) {
+      return res.status(400).json({
+        success: false,
+        message: "Order must be either 'time' or 'relevance'",
+      });
     }
 
-    console.log("API returned no comments, trying web scraping...");
-    const comments = await scrapeComments(url);
-    return res.json({ comments });
+    const comments = await fetchYouTubeComments(videoId, order);
+
+    return res.status(200).json({
+      success: true,
+      comments,
+    });
   } catch (error) {
-    console.error("Error fetching comments:", error.message);
-    return res.status(500).json({ error: "Something went wrong" });
+    console.error("Server error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "An error occurred while fetching comments",
+      error: error.message,
+    });
   }
 });
 
-const scrapeComments = async (url) => {
-  try {
-    const { data } = await axios.get(url, {
-      headers: { "User-Agent": "Mozilla/5.0" },
-    });
-    const $ = cheerio.load(data);
-    let comments = [];
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({
+    success: false,
+    message: "Something went wrong!",
+    error: err.message,
+  });
+});
 
-    $(".comment-copy").each((index, element) => {
-      comments.push($(element).text().trim());
-    });
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    message: "Route not found",
+  });
+});
 
-    return comments;
-  } catch (error) {
-    console.error("Scraping error:", error.message);
-    return [];
-  }
-};
-
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+});
