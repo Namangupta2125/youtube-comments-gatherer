@@ -5,13 +5,18 @@ const cors = require("cors");
 
 const app = express();
 app.use(cors());
-
-const PORT = 5000;
+app.use(express.json());
 
 app.get("/get-comments", async (req, res) => {
   try {
-    const { url } = req.query;
-    if (!url) return res.status(400).json({ error: "Post URL is required" });
+    const { videoId, order = "time" } = req.query;
+
+    if (!videoId) {
+      return res.status(400).json({
+        success: false,
+        message: "Video ID is required",
+      });
+    }
 
     const postIdMatch = url.match(/\/questions\/(\d+)/);
     if (!postIdMatch)
