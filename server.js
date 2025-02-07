@@ -8,14 +8,25 @@ const { fetchYouTubeComments } = require("./fetch_comments");
 app.use(cors());
 app.use(express.json());
 
+// Function to extract video ID from YouTube URL
+const extractVideoId = (url) => {
+  const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
+  const match = url.match(regex);
+  return match ? match[1] : null;
+};
+
 app.get("/", async (req, res) => {
   try {
-    const { videoId, order = "time" } = req.query;
+    let { videoId, order = "relevance", url } = req.query;
+
+    if (url) {
+      videoId = extractVideoId(url);
+    }
 
     if (!videoId) {
       return res.status(400).json({
         success: false,
-        message: "Video ID is required",
+        message: "Valid Video ID or URL is required",
       });
     }
 
